@@ -1,0 +1,31 @@
+{
+  "name": "a2ui-examples",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Interactive A2UI 1.0 examples: Express inference format, mixed catalogs, validation and live data, rendered with Lit.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "@a2ui/agent": "^0.1.0",
+    "@a2ui/lit": "^0.15.0",
+    "@a2ui/web_core": "^0.15.0",
+    "@lit/context": "^1.1.6",
+    "dompurify": "^3.4.17",
+    "lit": "^3.3.3",
+    "markdown-it": "^15.0.3",
+    "material-icons": "^1.13.14",
+    "zod": "^3.25.76"
+  }
+}
