@@ -17,7 +17,8 @@ npm test         # compiles every example and replays its actions, without a bro
 npm run build    # type-checks and writes dist/
 ```
 
-Needs Node 22. There is no model and no API key: the agents are scripted, so every run is the same.
+Needs Node 22. Six examples are scripted, so they run without a model or an API key and every run
+is the same. The seventh, **Live with Claude**, sends your requests to Claude; see below.
 
 ## The examples
 
@@ -29,6 +30,36 @@ Needs Node 22. There is no model and no API key: the agents are scripted, so eve
 | The agent asks the renderer | `callRendererFunction` and `rendererFunctionResponse`: the agent calls `deviceInfo()` before it draws. |
 | A weekend, in tabs          | `Tabs`, `Modal`, `DateTimeInput`, and an `openUrl` action that never leaves the renderer.              |
 | Playground                  | An editor: your own Express, compiled, validated and rendered on every keystroke.                      |
+| Live with Claude            | A real model writes the Express. Replies stream into the renderer; clicks go back to the model.         |
+
+## Live with Claude
+
+```sh
+export ANTHROPIC_API_KEY=sk-ant-...   # or sign in once with `ant auth login`
+npm run dev                           # open http://localhost:5173/#live
+```
+
+The key stays on the dev server. The page POSTs the conversation to `/api/chat`, a Vite plugin
+(`server/claude-proxy.ts`) adds the system prompt and streams Claude's reply back, and the page feeds
+each piece into the same Express compiler and renderer the scripted examples use.
+
+- **System prompt**: `src/llm/system-prompt.ts`, a short role description plus `promptContract`.
+  It is cached (`cache_control`), so the roughly 6,000-token contract is billed in full only once
+  every few minutes.
+- **Actions**: a click on a surface goes back to Claude as a `[action]` message with the action's
+  context and the surface's data model (`src/llm/live-agent.ts`).
+- **Self-repair**: if a reply's Express does not compile, the agent sends the error back once and
+  Claude writes the reply again.
+- **Model and effort**: `claude-opus-5-5` at effort `medium` by default. Override with
+  `CLAUDE_MODEL` and `CLAUDE_EFFORT` (`low` answers faster).
+- **Refusals**: requests use the server-side fallback (`fallbacks: "default"`), so a reply that a
+  safety classifier declines is retried on the recommended fallback model.
+- **Only this machine**: the dev server listens on the network (`host: true`), but `/api/chat`
+  answers only requests from this machine, so others on the network cannot spend your credits. Set
+  `CLAUDE_PROXY_ALLOW_REMOTE=1` to change that.
+- **Dev server only**: `npm run build` produces a static site without `/api/chat`. To host the live
+  example you need a server that does what `server/claude-proxy.ts` does, with authentication in
+  front of it.
 
 ## How it fits together
 
@@ -45,8 +76,8 @@ scripted agent ──Express text──▶ @a2ui/agent ──A2UI 1.0 messages�
 - `src/examples/` holds one file per example: the reply a model would write, and how the agent
   answers each action.
 
-To put a real model behind it, give the model `promptContract` from `session.ts` as part of its
-system prompt and pass its streamed output to `Session.reply`.
+- `src/llm/` and `server/` put Claude behind the live example: `Session.replyStream` compiles the
+  model's output while it streams.
 
 ## About the token meter
 

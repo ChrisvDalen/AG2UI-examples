@@ -20,10 +20,13 @@ function open(example: Example) {
   return {session, agent, act};
 }
 
+/** The examples with a scripted agent; the live one needs a model. */
+const scripted = examples.filter(example => !example.live);
+
 const errors = (session: Session) => session.turns.map(turn => turn.error).filter(Boolean);
 
 describe('every example', () => {
-  for (const example of examples) {
+  for (const example of scripted) {
     it(`${example.id}: the opening reply compiles and creates a surface`, async () => {
       const {session, agent} = open(example);
       await example.start(agent);
@@ -103,7 +106,7 @@ describe('follow-up turns', () => {
 
 describe('Express', () => {
   it('is shorter than the JSON it compiles to', async () => {
-    for (const example of examples) {
+    for (const example of scripted) {
       const {session, agent} = open(example);
       await example.start(agent);
       const express = expressOf(session.turns.at(-1)!.written);

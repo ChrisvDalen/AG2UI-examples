@@ -32,4 +32,6 @@ export interface Example {
   onAction?(action: UserAction, agent: AgentContext): Promise<void> | void;
   /** True for the example whose Express source the visitor edits. */
   editable?: boolean;
+  /** True for the example answered by a real model instead of a script. */
+  live?: boolean;
 }

@@ -48,6 +48,8 @@ export interface Turn {
   done: boolean;
   /** How many earlier turns with the same cause this one replaced. */
   repeats: number;
+  /** What the user typed, when a person rather than an action caused the reply. */
+  prompt?: string;
 }
 
 export interface StreamOptions {
@@ -60,6 +62,8 @@ export interface StreamOptions {
    * feed that never ends does not grow the transcript without bound.
    */
   transient?: boolean;
+  /** What the user typed, if a person caused this reply. */
+  prompt?: string;
 }
 
 // The catalog classes of `@a2ui/web_core` are generic over the renderer's
@@ -119,6 +123,19 @@ export function leanJson(messages: WireMessage[]): string {
 }
 
 const MAX_LOG_ENTRIES = 200;
+
+function emptyTurn(cause: string): Turn {
+  return {cause, written: '', text: '', messages: [], done: false, repeats: 0};
+}
+
+/** Cuts a finished reply into pieces, to replay it the way a model streams. */
+async function* paced(written: string, {chunkSize, delayMs}: StreamOptions): AsyncGenerator<string> {
+  const size = chunkSize || written.length;
+  for (let at = 0; at < written.length; at += size) {
+    if (at > 0 && delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
+    yield written.slice(at, at + size);
+  }
+}
 
 export class Session {
   readonly renderer: MessageProcessor<any>;
@@ -180,15 +197,32 @@ export class Session {
    * still streaming waits for it.
    */
   reply(cause: string, written: string, options: StreamOptions = {}): Promise<Turn> {
-    const run = () => this.stream(cause, written, options);
+    if (!written) return Promise.resolve(emptyTurn(cause));
+    return this.enqueue(() => this.stream(cause, paced(written, options), options));
+  }
+
+  /**
+   * Streams a reply whose text arrives in pieces, such as a model's output,
+   * into the renderer. Each piece is compiled as soon as it arrives, so the
+   * surface builds up while the model is still writing.
+   *
+   * An error thrown by `chunks` ends the turn with that error, like an error
+   * of the compiler does.
+   */
+  replyStream(cause: string, chunks: AsyncIterable<string>, options: StreamOptions = {}): Promise<Turn> {
+    return this.enqueue(() => this.stream(cause, chunks, options));
+  }
+
+  private enqueue(run: () => Promise<Turn>): Promise<Turn> {
     const result = this.queue.then(run, run);
     this.queue = result;
     return result;
   }
 
-  private async stream(cause: string, written: string, options: StreamOptions): Promise<Turn> {
-    const turn: Turn = {cause, written: '', text: '', messages: [], done: false, repeats: 0};
-    if (this.disposed || !written) return turn;
+  private async stream(cause: string, chunks: AsyncIterable<string>, options: StreamOptions): Promise<Turn> {
+    const turn = emptyTurn(cause);
+    if (options.prompt !== undefined) turn.prompt = options.prompt;
+    if (this.disposed) return turn;
     if (options.transient) {
       const earlier = this.turns.findIndex(other => other.cause === cause && other.done);
       if (earlier >= 0) {
@@ -208,14 +242,12 @@ export class Session {
         }
       }
     };
-    const chunkSize = options.chunkSize || written.length || 1;
     try {
-      for (let at = 0; at < written.length && !this.disposed; at += chunkSize) {
-        const chunk = written.slice(at, at + chunkSize);
+      for await (const chunk of chunks) {
+        if (this.disposed) break;
         turn.written += chunk;
         take(stream.feed(chunk));
         this.onChange();
-        if (options.delayMs) await new Promise(resolve => setTimeout(resolve, options.delayMs));
       }
       if (!this.disposed) take(stream.close());
     } catch (error) {

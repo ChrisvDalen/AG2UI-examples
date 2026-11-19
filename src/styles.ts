@@ -257,6 +257,46 @@ export const styles = css`
     display: block;
   }
 
+  .suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .suggestions .ghost {
+    text-align: left;
+  }
+  .ask {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .ask input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--ink);
+    font: inherit;
+  }
+  .ask input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .primary {
+    padding: 8px 16px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  button:disabled,
+  input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
   textarea {
     width: 100%;
     min-height: 260px;

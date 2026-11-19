@@ -5,6 +5,8 @@ import '@a2ui/lit';
 import {Session, promptContract, estimateTokens, type Turn, type UserAction} from './a2ui/session.js';
 import {examples, type AgentContext, type Example} from './examples/index.js';
 import {PLAYGROUND_SOURCE} from './examples/playground.js';
+import {LIVE_SUGGESTIONS} from './examples/live.js';
+import {LiveAgent} from './llm/live-agent.js';
 import {highlightExpress, highlightJson} from './highlight.js';
 import {renderMarkdown} from './markdown.js';
 import {styles} from './styles.js';
@@ -47,6 +49,7 @@ export class ExamplesApp extends LitElement {
     pane: {state: true},
     source: {state: true},
     tick: {state: true},
+    draft: {state: true},
   };
 
   declare selected: number;
@@ -55,8 +58,11 @@ export class ExamplesApp extends LitElement {
   declare source: string;
   /** Bumped whenever the session changes, to re-render. */
   declare tick: number;
+  /** What the visitor is typing in the live example. */
+  declare draft: string;
 
   private session!: Session;
+  private liveAgent?: LiveAgent;
   private editTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
@@ -66,6 +72,7 @@ export class ExamplesApp extends LitElement {
     this.pane = 'express';
     this.source = PLAYGROUND_SOURCE;
     this.tick = 0;
+    this.draft = '';
     // The renderer's Text component asks its host for a Markdown renderer.
     new ContextProvider(this, {context: Context.markdown as never, initialValue: renderMarkdown as never});
   }
@@ -81,19 +88,23 @@ export class ExamplesApp extends LitElement {
 
   override disconnectedCallback() {
     super.disconnectedCallback();
+    this.liveAgent?.dispose();
     this.session?.dispose();
   }
 
   /** Starts the selected example from the beginning. */
   private open() {
+    this.liveAgent?.dispose();
+    this.liveAgent = undefined;
     this.session?.dispose();
     const example = this.example;
-    const session = new Session(
-      action => void example.onAction?.(action, agent),
-      () => {
-        if (session === this.session) this.tick++;
-      },
-    );
+    const changed = () => {
+      if (session === this.session) this.tick++;
+    };
+    const session = new Session(action => {
+      if (this.liveAgent) void this.liveAgent.act(action);
+      else void example.onAction?.(action, agent);
+    }, changed);
     const paced = reducedMotion ? {} : {chunkSize: 7, delayMs: 12};
     const agent: AgentContext = {
       reply: (cause, written) => session.reply(cause, written, paced),
@@ -104,7 +115,9 @@ export class ExamplesApp extends LitElement {
     };
     this.session = session;
     this.tick++;
-    if (example.editable) {
+    if (example.live) {
+      this.liveAgent = new LiveAgent(session, changed);
+    } else if (example.editable) {
       void agent.push('Editor', `<a2ui>\n${this.source}\n</a2ui>`);
     } else {
       void example.start(agent).catch(error => console.error(error));
@@ -170,14 +183,19 @@ export class ExamplesApp extends LitElement {
 
       <main>
         <section class="chat" aria-label="Conversation">
-          ${example.editable ? this.renderEditor() : this.renderConversation()}
+          ${example.live
+            ? this.renderLive()
+            : example.editable
+              ? this.renderEditor()
+              : this.renderConversation()}
         </section>
         <section class="wire" aria-label="What went over the wire">${this.renderWire()}</section>
       </main>
 
       <footer>
         Built on <code>@a2ui/agent</code>, <code>@a2ui/web_core</code> and <code>@a2ui/lit</code>.
-        The agent is scripted, so the examples run without a model or an API key. The Express prompt
+        The agents are scripted, so the examples run without a model or an API key, except
+        <em>Live with Claude</em>, which needs one on the dev server. The Express prompt
         contract for these catalogs is about ${estimateTokens(promptContract).toLocaleString('en')}
         tokens.
       </footer>
@@ -219,6 +237,59 @@ export class ExamplesApp extends LitElement {
         `,
       )}
       ${this.renderErrors()}
+    `;
+  }
+
+  private renderLive() {
+    const busy = this.liveAgent?.busy ?? false;
+    const turns = this.session.turns;
+    const submit = (event: Event) => {
+      event.preventDefault();
+      if (busy || !this.draft.trim()) return;
+      void this.liveAgent?.ask(this.draft);
+      this.draft = '';
+    };
+    return html`
+      <div class="bar">
+        <h2>Conversation</h2>
+        <button class="ghost" ?disabled=${turns.length === 0} @click=${() => this.open()}>
+          New conversation
+        </button>
+      </div>
+      ${turns.length === 0
+        ? html`<p class="note">
+              Ask for something an interface would help with. Claude answers in Express; the page
+              compiles and renders it as it streams.
+            </p>
+            <div class="suggestions">
+              ${LIVE_SUGGESTIONS.map(
+                text => html`<button class="ghost" @click=${() => void this.liveAgent?.ask(text)}>
+                  ${text}
+                </button>`,
+              )}
+            </div>`
+        : nothing}
+      ${turns.map(
+        turn => html`
+          ${turn.prompt !== undefined
+            ? html`<p class="bubble user">${turn.prompt}</p>`
+            : html`<p class="event">${turn.cause}</p>`}
+          ${turn.text ? html`<p class="bubble agent">${turn.text}</p>` : nothing}
+          ${!turn.done && !turn.written ? html`<p class="note">Claude is thinking…</p>` : nothing}
+          ${turn.error ? html`<p class="error" role="alert">${turn.error}</p>` : nothing}
+        `,
+      )}
+      ${this.renderSurfaces()}
+      <form class="ask" @submit=${submit}>
+        <input
+          aria-label="Message to Claude"
+          placeholder=${busy ? 'Claude is answering…' : 'Ask for an interface…'}
+          .value=${this.draft}
+          ?disabled=${busy}
+          @input=${(event: Event) => (this.draft = (event.target as HTMLInputElement).value)}
+        />
+        <button class="primary" type="submit" ?disabled=${busy || !this.draft.trim()}>Send</button>
+      </form>
     `;
   }
 
