@@ -1,3 +1,4 @@
+import {dashboard} from './dashboard.js';
 import {device} from './device.js';
 import {dinner} from './dinner.js';
 import {greenhouse} from './greenhouse.js';
@@ -7,5 +8,5 @@ import {signup} from './signup.js';
 import {trip} from './trip.js';
 import type {Example} from './types.js';
 
-export const examples: Example[] = [dinner, greenhouse, signup, device, trip, playground, live];
+export const examples: Example[] = [dinner, greenhouse, signup, device, trip, dashboard, playground, live];
 export type {AgentContext, Example} from './types.js';

@@ -16,6 +16,7 @@ import {
 import {MessageProcessor} from '@a2ui/web_core/v1_0';
 import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {greenhouseCatalog} from './greenhouse-catalog.js';
+import {dashboardCatalog} from './dashboard-catalog.js';
 
 /** Any A2UI message, in either direction. */
 export type WireMessage = Record<string, unknown>;
@@ -69,7 +70,7 @@ export interface StreamOptions {
 // The catalog classes of `@a2ui/web_core` are generic over the renderer's
 // component type, which the agent SDK does not know about.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const catalogs = [basicCatalog, greenhouseCatalog] as any[];
+const catalogs = [basicCatalog, greenhouseCatalog, dashboardCatalog] as any[];
 const generator = new A2uiGenerator(catalogs.map(catalog => new CatalogConfig(catalog)));
 
 function createProcessor(): A2uiRequestProcessor {

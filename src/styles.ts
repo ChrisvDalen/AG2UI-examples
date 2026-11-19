@@ -43,6 +43,8 @@ export const styles = css`
     --a2ui-button-border-radius: 8px;
     --gh-track: var(--sunken);
     --gh-warn: var(--warn);
+    --dash-good: var(--accent);
+    --dash-bad: var(--danger);
 
     display: block;
     max-width: 1180px;

@@ -4,7 +4,7 @@ import type {Example} from './types.js';
 export const LIVE_SUGGESTIONS = [
   'Help me plan a picnic for six people on Saturday',
   'A signup form for a pottery workshop, with a date picker',
-  'Show the greenhouse: temperature 27 °C, humidity 64%, with a trend',
+  'Show me how the regions compare this quarter',
 ];
 
 export const live: Example = {
